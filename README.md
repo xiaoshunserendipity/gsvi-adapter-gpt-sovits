@@ -8,8 +8,10 @@
 
 ## 下载
 
-不想看源码？直接去 [**Releases**](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 `启动GSVI适配器.exe`。
+不想看源码？直接去 [**Releases**](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 `GSVI-Adapter-v3.0.0.exe`。
 
+> 下载后可以随意改名（比如改回 `启动GSVI适配器.exe`），程序不依赖自己的文件名。
+>
 > 这个 exe 只是**启动器**，仍然需要你自己装好 GPT-SoVITS——它靠 GPT-SoVITS 自带的 `runtime\python.exe` 运行，本身不含推理环境。
 
 ---
@@ -58,7 +60,7 @@
 | 文件 | 说明 |
 |---|---|
 | `gsvi_adapter.py` | 适配器主程序，桥接 GPT-SoVITS 和 AstrBot |
-| `启动GSVI适配器.exe` | 启动器，**双击这个**。不在仓库里，去 [Releases](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 |
+| `启动GSVI适配器.exe` | 启动器，**双击这个**。不在仓库里，去 [Releases](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 `GSVI-Adapter-v3.0.0.exe`（可改名） |
 | `启动GSVI适配器.bat` | 备用启动脚本，没有 exe 时用它 |
 | `gsvi_launcher.py` | 启动器源码。打 tag 时 GitHub Actions 会自动构建 exe 并挂到 Release |
 | `gsvi_characters.json` | **角色配置**，首次启动自动生成，之后由网页读写 |
@@ -121,7 +123,7 @@ custom:
 
 ### 第三步：启动适配器
 
-双击 `启动GSVI适配器.exe`（从 [Releases](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载；没下 exe 就用备用的 `启动GSVI适配器.bat`），看到以下输出即为成功：
+双击下载的 exe（Release 里叫 `GSVI-Adapter-v3.0.0.exe`；没下 exe 就用备用的 `启动GSVI适配器.bat`），看到以下输出即为成功：
 
 ```
 ============================================

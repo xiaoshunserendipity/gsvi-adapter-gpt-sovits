@@ -383,6 +383,22 @@ python gsvi_adapter.py -c my_tts_config.yaml
 
 ---
 
+## 发布新版本
+
+exe 不打进仓库，走 Releases 分发。发版只要打一个 tag：
+
+```bash
+git tag v3.1.0
+git push origin v3.1.0
+```
+
+推送后 GitHub Actions 会自动在 `windows-latest` 上用 PyInstaller 构建启动器，
+按版本号重命名（`GSVI-Adapter-v3.1.0.exe`）并附到对应的 Release 上，不用本地打包再上传。
+
+> **Release 资源名必须用 ASCII**：GitHub 会把中文过滤掉，`启动GSVI适配器.exe` 上传后会变成 `GSVI.exe`。
+
+---
+
 ## 常见问题
 
 | 问题 | 原因 | 解决方法 |

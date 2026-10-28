@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 用户配置：含本机绝对路径，不随仓库分发
+gsvi_characters.json
+
+# 运行时产物
+gsvi_audio/
+*.wav
+
+# 备份与打包
+*.bak
+*.bak_*
+*.bak2_*
+*.zip
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 编辑器
+.vscode/
+.idea/

@@ -21,6 +21,9 @@ build/
 dist/
 *.spec
 
+# 打包产物走 Releases，不进仓库
+*.exe
+
 # 编辑器
 .vscode/
 .idea/

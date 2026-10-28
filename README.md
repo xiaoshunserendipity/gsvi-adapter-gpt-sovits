@@ -6,6 +6,14 @@
 
 ---
 
+## 下载
+
+不想看源码？直接去 [**Releases**](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 `启动GSVI适配器.exe`。
+
+> 这个 exe 只是**启动器**，仍然需要你自己装好 GPT-SoVITS——它靠 GPT-SoVITS 自带的 `runtime\python.exe` 运行，本身不含推理环境。
+
+---
+
 ## 来源与致谢
 
 本项目基于 B 站 UP 主 **暮雨沐雨了** 的原始适配器代码修改而来：
@@ -50,9 +58,9 @@
 | 文件 | 说明 |
 |---|---|
 | `gsvi_adapter.py` | 适配器主程序，桥接 GPT-SoVITS 和 AstrBot |
-| `启动GSVI适配器.exe` | 启动器，**双击这个**（等价于下面的 bat） |
-| `启动GSVI适配器.bat` | 备用启动脚本，exe 被拦或想看到完整命令时用它 |
-| `gsvi_launcher.py` | 启动器源码，改完可用 PyInstaller 重新打包 |
+| `启动GSVI适配器.exe` | 启动器，**双击这个**。不在仓库里，去 [Releases](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载 |
+| `启动GSVI适配器.bat` | 备用启动脚本，没有 exe 时用它 |
+| `gsvi_launcher.py` | 启动器源码。打 tag 时 GitHub Actions 会自动构建 exe 并挂到 Release |
 | `gsvi_characters.json` | **角色配置**，首次启动自动生成，之后由网页读写 |
 | `制作分发包.bat` | 双击它，把适配器 + 音色打成 zip 发给别人 |
 | `制作分发包.py` | 上面那个 bat 实际执行的脚本 |
@@ -73,7 +81,7 @@ GPT-SoVITS/
 ├── GPT_weights_v2Pro/          ← 你的训练输出
 ├── SoVITS_weights_v2Pro/       ← 你的训练输出
 ├── gsvi_adapter.py             ← 新文件
-├── 启动GSVI适配器.exe           ← 新文件（双击这个）
+├── 启动GSVI适配器.exe           ← 从 Releases 下载，双击这个
 ├── gsvi_characters.json        ← 首次启动自动生成
 └── gsvi_audio/                 ← 自动创建，缓存生成的音频
 ```
@@ -113,7 +121,7 @@ custom:
 
 ### 第三步：启动适配器
 
-双击 `启动GSVI适配器.exe`（或备用的 `启动GSVI适配器.bat`），看到以下输出即为成功：
+双击 `启动GSVI适配器.exe`（从 [Releases](https://github.com/xiaoshunserendipity/gsvi-adapter-gpt-sovits/releases) 下载；没下 exe 就用备用的 `启动GSVI适配器.bat`），看到以下输出即为成功：
 
 ```
 ============================================

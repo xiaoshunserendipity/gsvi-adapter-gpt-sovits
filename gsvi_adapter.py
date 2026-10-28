@@ -94,7 +94,10 @@ DEFAULT_SETTINGS = {
     "allow_dirs": [],                                        # 目录浏览器额外允许的根目录
     "preview_text": "你好，我是{name}，很高兴见到你。",        # 试听文本，{name} 会被替换
     "preview_lang": "auto",                                  # 试听文本语言；auto = 自动检测
+    "role_source": "request",                                # 角色来源：request=跟随 AstrBot 请求，web=跟随网页选中
 }
+
+VALID_ROLE_SOURCES = {"request", "web"}
 
 LANG_MAP = {
     "中文": "zh", "英文": "en", "日文": "ja",
@@ -276,6 +279,9 @@ def load_config():
             plang = raw_settings.get("preview_lang")
             if isinstance(plang, str) and plang.strip():
                 settings["preview_lang"] = plang.strip()
+            rsrc = raw_settings.get("role_source")
+            if isinstance(rsrc, str) and rsrc.strip() in VALID_ROLE_SOURCES:
+                settings["role_source"] = rsrc.strip()
 
         CHARACTERS = chars
         SETTINGS = settings
@@ -369,6 +375,7 @@ class ModelManager:
         self.lock = threading.RLock()
         self.current = self._snapshot()
         self.last_good = self.current
+        self.current_name = ""          # 当前加载的是哪个角色（启动时未知，首次请求后确定）
         self.version = str(getattr(engine.configs, "version", "") or "")
         self._bert = getattr(engine.configs, "bert_base_path", None)
         self._cnhubert = getattr(engine.configs, "cnhuhbert_base_path", None)
@@ -776,16 +783,20 @@ class SettingsPayload(BaseModel):
     allow_dirs: list = []
     preview_text: str = ""
     preview_lang: str = "auto"
+    role_source: str = "request"
 
 
 # ============================================================================
 # 合成核心
 # ============================================================================
 def _synth(char: dict, text: str, text_lang: str, prompt_lang: str,
-           ref_audio: str, prompt_text: str):
+           ref_audio: str, prompt_text: str, name: str = ""):
     gpt, sovits = _resolve_model(char)
     with MODEL.lock:
         MODEL.ensure(gpt, sovits)
+        if name:
+            # 记下当前加载的是哪个角色，供「跟随网页」模式使用
+            MODEL.current_name = name
         tts_req = {
             "text": text,
             "text_lang": text_lang,
@@ -838,6 +849,13 @@ def infer_single(req: GSVIRequest, request: Request):
         return JSONResponse(status_code=e.status_code, content={"msg": e.detail})
 
     req_name = (req.model_name or "").strip()
+
+    # 角色来源：
+    #   request（默认）—— 以 AstrBot 请求里的 model_name 为准
+    #   web          —— 忽略 model_name，始终用网页上选中的那个角色
+    if SETTINGS.get("role_source") == "web" and MODEL.current_name in CHARACTERS:
+        req_name = MODEL.current_name
+
     char = CHARACTERS.get(req_name) if req_name else None
     if char is None:
         names = "、".join(CHARACTERS) or "（未配置）"
@@ -888,7 +906,8 @@ def infer_single(req: GSVIRequest, request: Request):
                 "msg": f"角色 '{req.model_name}' 未配置参考音频"
             })
 
-        sr, audio_data = _synth(char, text, text_lang, prompt_lang, ref_audio, prompt_text)
+        sr, audio_data = _synth(char, text, text_lang, prompt_lang, ref_audio, prompt_text,
+                                name=req_name)
         filename = _write_wav(sr, audio_data)
         # msg 必须严格是「合成成功」，AstrBot 的 GSVI 提供商按这个字符串判断成败
         payload = {"msg": "合成成功", "audio_url": build_audio_url(request, filename)}
@@ -940,12 +959,17 @@ def _character_view():
             problems.append("SoVITS 权重缺失")
         if (gpt and not sovits) or (sovits and not gpt):
             problems.append("权重只配了一个")
+        # 优先按角色名判断，退化到按权重路径比较（启动时还没确定角色名）
+        if MODEL.current_name:
+            loaded = (name == MODEL.current_name)
+        else:
+            loaded = bool(gpt and sovits) and (gpt, sovits) == (cur_gpt, cur_sovits)
         items.append({
             "name": name,
             "gpt_weights": gpt,
             "sovits_weights": sovits,
             "bound": bool(gpt and sovits),
-            "loaded": bool(gpt and sovits) and (gpt, sovits) == (cur_gpt, cur_sovits),
+            "loaded": loaded,
             "ref_audio": ref,
             "prompt_text": char.get("prompt_text", ""),
             "prompt_lang": char.get("prompt_lang") or "跟随请求",
@@ -955,6 +979,7 @@ def _character_view():
         })
     return {
         "current": {"gpt_weights": cur_gpt, "sovits_weights": cur_sovits},
+        "current_name": MODEL.current_name,
         "characters": items,
         "settings": SETTINGS,
         "base_dir": str(BASE_DIR),
@@ -1133,10 +1158,17 @@ async def update_settings(payload: SettingsPayload, request: Request):
             "msg": "试听语言不支持", "errors": {"preview_lang": "不支持的语言"}
         })
 
+    rsrc = (payload.role_source or "request").strip()
+    if rsrc not in VALID_ROLE_SOURCES:
+        return JSONResponse(status_code=400, content={
+            "msg": "角色来源取值无效", "errors": {"role_source": "只能是 request 或 web"}
+        })
+
     new_settings = {
         "allow_dirs": allow,
         "preview_text": (payload.preview_text or "").strip() or DEFAULT_SETTINGS["preview_text"],
         "preview_lang": plang,
+        "role_source": rsrc,
     }
     try:
         await run_in_threadpool(_commit, dict(CHARACTERS), new_settings)
@@ -1239,7 +1271,8 @@ def api_preview(request: Request, name: str = Query(default="")):
         text_lang = _detect_lang(text)
 
     try:
-        sr, audio_data = _synth(char, text, text_lang, prompt_lang, ref, char.get("prompt_text", ""))
+        sr, audio_data = _synth(char, text, text_lang, prompt_lang, ref, char.get("prompt_text", ""),
+                                name=name)
         filename = _write_wav(sr, audio_data)
         result = {
             "msg": "试听已生成",
@@ -1268,7 +1301,9 @@ def _do_switch(name: str) -> bool:
         raise KeyError(name)
     gpt, sovits = _resolve_model(char)
     with MODEL.lock:
-        return MODEL.ensure(gpt, sovits)
+        switched = MODEL.ensure(gpt, sovits)
+        MODEL.current_name = name
+        return switched
 
 
 @APP.post("/switch")
@@ -1375,6 +1410,7 @@ UI_TEMPLATE = r"""<!DOCTYPE html>
 <body>
 <h1>GSVI 适配器 · 角色管理</h1>
 <div class="sub" id="cur">加载中…</div>
+<div id="hint" style="display:none;font-size:12px;line-height:1.7;color:#633806;background:#FAEEDA;border:0.5px solid #BA7517;border-radius:8px;padding:8px 12px;margin-bottom:14px"></div>
 <div class="bar">
   <button class="primary" onclick="openEdit('')">+ 新增角色</button>
   <button class="ghost" onclick="openSettings()">设置</button>
@@ -1431,6 +1467,11 @@ UI_TEMPLATE = r"""<!DOCTYPE html>
         <option value="ja">日文</option><option value="ko">韩文</option>
         <option value="yue">粤语</option>
       </select></label>
+    <label>角色来源<span class="hint">决定 AstrBot 发消息时用哪个角色的声音</span>
+      <select id="s_rsrc">
+        <option value="request">跟随 AstrBot 请求（角色栏填什么就用什么）</option>
+        <option value="web">跟随网页选中（忽略 AstrBot 的角色栏）</option>
+      </select></label>
     <label>目录浏览器额外允许的目录<span class="hint">每行一个，留空则只能浏览项目目录</span>
       <textarea id="s_dirs" rows="4" placeholder="C:\Users\你的用户名\Desktop\参考音频"></textarea></label>
     <div class="err" id="sErr"></div>
@@ -1470,8 +1511,20 @@ async function load(){
   try{
     var j=await req('/api/characters');
     STATE.chars=j.characters; STATE.current=j.current;
-    $('cur').textContent='当前加载：'+(base(j.current.sovits_weights)||'未知')
-      +(j.loaded_version?'　版本 '+j.loaded_version:'')+'　|　配置目录：'+j.base_dir;
+    var isWeb = j.settings.role_source === 'web';
+    $('cur').textContent='当前角色：'+(j.current_name||'未确定')
+      +(j.loaded_version?'（'+j.loaded_version+'）':'')
+      +'　|　角色来源：'+(isWeb?'跟随网页':'跟随 AstrBot 请求')
+      +'　|　配置目录：'+j.base_dir;
+    var hint=$('hint');
+    if(isWeb){
+      hint.style.display='none';
+    }else{
+      hint.style.display='block';
+      hint.textContent='当前是「跟随 AstrBot 请求」：AstrBot 的「角色」栏填什么就用什么。'
+        +'网页上点「切换」只对试听有效，下一条消息会按 AstrBot 的角色栏切回去。'
+        +'想让网页切换真正生效，去「设置」把角色来源改成「跟随网页」。';
+    }
     render();
   }catch(e){ toast(e.message,true); }
 }
@@ -1617,6 +1670,7 @@ function openSettings(){
   req('/api/settings').then(function(j){
     $('s_preview').value=j.settings.preview_text||'';
     $('s_plang').value=j.settings.preview_lang||'auto';
+    $('s_rsrc').value=j.settings.role_source||'request';
     $('s_dirs').value=(j.settings.allow_dirs||[]).join('\n');
     $('sErr').textContent='';
     $('settings').hidden=false;
@@ -1629,9 +1683,9 @@ async function saveSettings(){
   try{
     var r=await req('/api/settings',{method:'PUT',body:JSON.stringify({
       allow_dirs:dirs, preview_text:$('s_preview').value.trim(),
-      preview_lang:$('s_plang').value
+      preview_lang:$('s_plang').value, role_source:$('s_rsrc').value
     })});
-    closeSettings(); toast(r.msg);
+    closeSettings(); toast(r.msg); load();
   }catch(e){ $('sErr').textContent=e.message; }
 }
 
